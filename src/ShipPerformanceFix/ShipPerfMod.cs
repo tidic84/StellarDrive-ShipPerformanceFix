@@ -1,13 +1,13 @@
 using MelonLoader;
 
-[assembly: MelonInfo(typeof(StellarRooms.RoomsMod), "StellarRooms", "0.1.0", "tidic84")]
+[assembly: MelonInfo(typeof(ShipPerformanceFix.ShipPerfMod), "ShipPerformanceFix", "0.1.0", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
-namespace StellarRooms
+namespace ShipPerformanceFix
 {
-    public class RoomsMod : MelonMod
+    public class ShipPerfMod : MelonMod
     {
-        internal static RoomsMod Instance { get; private set; }
+        internal static ShipPerfMod Instance { get; private set; }
         internal static MelonLogger.Instance Log => Instance.LoggerInstance;
 
         public override void OnInitializeMelon()
@@ -17,7 +17,7 @@ namespace StellarRooms
 #if DEV
             RoomsDev.Init(HarmonyInstance, Log);
 #endif
-            Log.Msg("StellarRooms ready.");
+            Log.Msg("ShipPerformanceFix ready.");
         }
 
 #if DEV

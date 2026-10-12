@@ -8,4 +8,4 @@ if [ -n "$ROLE" ]; then LOG=$(ls -1t --time=birth "$GAME"/MelonLoader/Logs/*.log
 before=$(wc -l < "$LOG")
 printf '%s\n' "$@" > "$GAME/UserData/stellar_${MOD}${SUFFIX}_cmd.txt"
 sleep "${WAIT:-2}"
-tail -n +$((before+1)) "$LOG" | grep -E "\[Stellar[A-Za-z]*\]|Exception|rror" | cut -c1-400
+tail -n +$((before+1)) "$LOG" | grep -E "\[(Stellar[A-Za-z]*|ShipPerformanceFix)\]|Exception|rror" | cut -c1-400

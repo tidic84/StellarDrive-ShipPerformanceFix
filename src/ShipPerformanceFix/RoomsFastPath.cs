@@ -10,7 +10,7 @@ using Ships.Rooms.Model;
 using UnityEngine;
 using WorldProvision.Interface.Services;
 
-namespace StellarRooms
+namespace ShipPerformanceFix
 {
     /// <summary>
     /// The game recomputes a ship's rooms after every hull change by clearing the air region around the change and

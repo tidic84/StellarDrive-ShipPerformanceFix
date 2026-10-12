@@ -1,7 +1,7 @@
-# Builds StellarRooms and packs the release zip in the layout StellarModManager expects:
-#   StellarDrive-StellarRooms.zip
+# Builds ShipPerformanceFix and packs the release zip in the layout StellarModManager expects:
+#   StellarDrive-ShipPerformanceFix.zip
 #     mod.json, Thumbnail.png
-#     Mods/StellarRooms.dll
+#     Mods/ShipPerformanceFix.dll
 param(
     [string]$GamePath = "C:\Program Files (x86)\Steam\steamapps\common\StellarDrive Demo",
     [string]$MelonLoaderPath = "",
@@ -9,7 +9,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
-$mod = "StellarRooms"
+$mod = "ShipPerformanceFix"
 $args = @("build", "$root\src\$mod\$mod.csproj", "-c", "Release", "-p:GamePath=$GamePath")
 if ($MelonLoaderPath) { $args += "-p:MelonLoaderPath=$MelonLoaderPath" }
 if ($ModsPath) { $args += "-p:ModsPath=$ModsPath" }

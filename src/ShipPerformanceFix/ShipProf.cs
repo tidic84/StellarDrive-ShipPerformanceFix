@@ -9,7 +9,7 @@ using HarmonyLib;
 using MelonLoader;
 using UnityEngine;
 
-namespace StellarRooms
+namespace ShipPerformanceFix
 {
     /// <summary>
     /// Dev profiler for the game's ship code: times every method of the Ships assemblies and the world updaters

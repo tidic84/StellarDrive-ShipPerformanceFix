@@ -14,7 +14,7 @@ using Ships.Services;
 using Stellar.Shared;
 using UnityEngine;
 
-namespace StellarRooms
+namespace ShipPerformanceFix
 {
     /// <summary>
     /// Dev commands (UserData/stellar_rooms_cmd.txt), plus timers on the room, hull mesh and collider updates:
@@ -124,7 +124,7 @@ namespace StellarRooms
         {
             _harness?.Update();
             if (_spikeMs > 0f && Time.unscaledDeltaTime * 1000f > _spikeMs)
-                RoomsMod.Log.Msg($"[DEV] spike frame {Time.frameCount}: {Time.unscaledDeltaTime * 1000f:F1} ms");
+                ShipPerfMod.Log.Msg($"[DEV] spike frame {Time.frameCount}: {Time.unscaledDeltaTime * 1000f:F1} ms");
         }
 
         /// <summary>
@@ -272,7 +272,7 @@ namespace StellarRooms
         private static void TimedStop(long __state, System.Reflection.MethodBase __originalMethod)
         {
             double ms = (Stopwatch.GetTimestamp() - __state) * 1000.0 / Stopwatch.Frequency;
-            if (ms > 0.5) RoomsMod.Log.Msg($"[DEV] {__originalMethod.DeclaringType.Name}.{__originalMethod.Name} {ms:F2} ms");
+            if (ms > 0.5) ShipPerfMod.Log.Msg($"[DEV] {__originalMethod.DeclaringType.Name}.{__originalMethod.Name} {ms:F2} ms");
         }
 
         private static readonly Stopwatch RoomsWatch = new Stopwatch();
@@ -283,7 +283,7 @@ namespace StellarRooms
         {
             RoomsWatch.Stop();
             if (RoomsWatch.Elapsed.TotalMilliseconds > 0.5)
-                RoomsMod.Log.Msg($"[DEV] UpdateRooms {RoomsWatch.Elapsed.TotalMilliseconds:F2} ms ({(RoomsFastPath.Enabled ? RoomsFastPath.LastPath : "original")})");
+                ShipPerfMod.Log.Msg($"[DEV] UpdateRooms {RoomsWatch.Elapsed.TotalMilliseconds:F2} ms ({(RoomsFastPath.Enabled ? RoomsFastPath.LastPath : "original")})");
         }
     }
 }

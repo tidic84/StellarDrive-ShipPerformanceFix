@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <AssemblyName>StellarRooms</AssemblyName>
-    <RootNamespace>StellarRooms</RootNamespace>
+    <AssemblyName>ShipPerformanceFix</AssemblyName>
+    <RootNamespace>ShipPerformanceFix</RootNamespace>
     <Version>0.1.0</Version>
   </PropertyGroup>
 </Project>
