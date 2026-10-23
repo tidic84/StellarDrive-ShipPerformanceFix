@@ -47,6 +47,8 @@ Measured with two big ships landed on the same planet (25,746 and 69,021 panels)
 | Ship bounds, per frame | ~12 ms | ~0 ms |
 | Frame rate | ~32 fps | ~100 fps |
 
+**With TF Advanced: force field doors.** TF Advanced animates the sheet of its force field doors on the CPU, recomputing the colour of every vertex every frame for every door within 30 m, on screen or not; a 27 × 23 door has about 28,000 vertices. Ship Performance Fix paints a door only while it is on screen, at most 30 times per second, and with a copy of the mod's paint that computes each point once for both faces of the sheet (the colours are identical, checked vertex by vertex). Inside the ship above, with two big doors: ~6.7 ms → ~0.9 ms per frame, and ~50 → ~80–100 fps. Nothing changes when TF Advanced is not installed.
+
 The host's own physics step (the ships' colliders against the ground) is unchanged: about 6 ms per tick with these two ships.
 
 ## Joining a world with big ships
@@ -67,4 +69,4 @@ Multiplayer: every machine computes its own rooms, so each player who installs i
 ./build.ps1    # Release build + dist/StellarDrive-ShipPerformanceFix.zip
 ```
 
-Override the game path with `-GamePath "D:\SteamLibrary\steamapps\common\StellarDrive Demo"`. Building with `-p:DefineConstants=DEV` adds dev commands read from `UserData/stellar_rooms_cmd.txt`, with timers on the room, mesh and collider updates. The commands are `bigship`, `addpart`, `rmpart`, `addbox`, `rooms`, `roomcheck`, `fuzz`, `vacuum`, `roomsfast on|off`, `prof on [ms]|off`, `spikes <ms>`, `frame <n> [updates]|watch [ms]` (time per player loop system and per Update), `scene`, `posefix on|off`, `boundscache on|off`, `boundscheck` and `load <world>`; see `RoomsDev.cs`.
+Override the game path with `-GamePath "D:\SteamLibrary\steamapps\common\StellarDrive Demo"`. Building with `-p:DefineConstants=DEV` adds dev commands read from `UserData/stellar_rooms_cmd.txt`, with timers on the room, mesh and collider updates. The commands are `bigship`, `addpart`, `rmpart`, `addbox`, `rooms`, `roomcheck`, `fuzz`, `vacuum`, `roomsfast on|off`, `prof on [ms]|off`, `spikes <ms>`, `frame <n> [updates]|watch [ms]` (time per player loop system and per Update), `scene`, `posefix on|off`, `boundscache on|off`, `boundscheck`, `doorfix on|off`, `doorcheck` and `load <world>`; see `RoomsDev.cs`.

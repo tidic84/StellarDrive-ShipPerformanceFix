@@ -122,6 +122,7 @@ namespace ShipPerformanceFix
             _worstFrame = _frameSum = _physMs = 0;
             _physCalls = 0;
             ClientShipPose.Written = ClientShipPose.Skipped = 0;
+            FieldDoorThrottle.Painted = FieldDoorThrottle.Skipped = 0;
             _last = -1;
             _frameStart = 0;
             if (_watchMs > 0) _framesLeft = 60;
@@ -194,7 +195,7 @@ namespace ShipPerformanceFix
 
         private static void Report()
         {
-            _log.Msg($"[FRAME] {_frames} frames: {_frameSum / _frames:F2} ms avg ({1000.0 * _frames / _frameSum:F1} fps), worst {_worstFrame:F1} ms, physics steps {(double)_fixedSteps / _frames:F2}/frame, game SimulatePhysics {_physMs / _frames:F2} ms/frame ({(double)_physCalls / _frames:F2} calls), client ship poses written {ClientShipPose.Written} skipped {ClientShipPose.Skipped}");
+            _log.Msg($"[FRAME] {_frames} frames: {_frameSum / _frames:F2} ms avg ({1000.0 * _frames / _frameSum:F1} fps), worst {_worstFrame:F1} ms, physics steps {(double)_fixedSteps / _frames:F2}/frame, game SimulatePhysics {_physMs / _frames:F2} ms/frame ({(double)_physCalls / _frames:F2} calls), client ship poses written {ClientShipPose.Written} skipped {ClientShipPose.Skipped}, field doors painted {FieldDoorThrottle.Painted} skipped {FieldDoorThrottle.Skipped}");
             foreach (int i in Enumerable.Range(0, _names.Length).OrderByDescending(i => _total[i]).Take(8))
                 _log.Msg($"[FRAME]   {_total[i] / _frames,7:F2} ms  {_names[i]}");
             foreach (var kv in UpdateMs.Where(kv => kv.Value > 0).OrderByDescending(kv => kv.Value).Take(25))

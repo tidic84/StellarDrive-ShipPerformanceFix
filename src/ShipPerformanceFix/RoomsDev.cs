@@ -55,6 +55,18 @@ namespace ShipPerformanceFix
                 }
                 log.Msg($"[DEV] boundscheck: {ok} ok, {bad} wrong");
             });
+            _harness.Command("doorfix", a => log.Msg($"[DEV] field door throttle {(FieldDoorThrottle.Enabled = a.Length < 2 || a[1] != "off")}"));
+            _harness.Command("doorcheck", a =>
+            {
+                // doorcheck: the mod's Paint against ours on every force field door, sealed and outline variants
+                var type = AccessTools.TypeByName("StellarDriveDemoTFAdvanced.Power.FieldDoorVisuals");
+                foreach (var door in Object.FindObjectsByType(type, FindObjectsSortMode.None))
+                {
+                    if (Traverse.Create(door).Field("_points").GetValue() == null) continue;
+                    var tint = new Color(0.35f, 0.85f, 1f);
+                    log.Msg($"[DEV] door {Traverse.Create(door).Field("_builtWidth").GetValue()}x{Traverse.Create(door).Field("_builtHeight").GetValue()}: worst diff field {FieldDoorThrottle.Check(door, tint, false, false)}, solid {FieldDoorThrottle.Check(door, tint, false, true)}, outline {FieldDoorThrottle.Check(door, tint, true, false)}");
+                }
+            });
             _harness.Command("meshcols", a => FrameProf.MeshColliders(a, log));
             h.Patch(AccessTools.Method("Managers.Server.Updaters.PhysicsScenesServerUpdater:SimulatePhysics"),
                 prefix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStart)), postfix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStop)));
