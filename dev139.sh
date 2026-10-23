@@ -14,6 +14,6 @@ ssh "$HOST" "del \"$RGAME\\MelonLoader\\Latest.log\" >nul 2>&1 & schtasks /Creat
 log() { ssh "$HOST" "type \"$RGAME\\MelonLoader\\Latest.log\" 2>nul"; }
 for i in $(seq 1 60); do log | grep -q "Backup menus ready\|ShipPerformanceFix ready" && break; sleep 3; done
 sleep 8
-ssh "$HOST" "echo load ${WORLD:-SPF_Test}> \"$RGAME\\UserData\\stellar_rooms_cmd.txt\""
+printf "%s\r\nload %s\r\n" "${PRE:-spikes 300}" "${WORLD:-SPF_Test}" | ssh "$HOST" "more > \"$RGAME\\UserData\\stellar_rooms_cmd.txt\""
 for i in $(seq 1 120); do log | grep -q "SafetyRails\] world loaded" && break; sleep 3; done
 log | grep -aE "ShipPerformanceFix.*(Exception|rror)|world loaded" | tail -3

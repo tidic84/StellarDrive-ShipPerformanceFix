@@ -328,6 +328,7 @@ namespace ShipPerformanceFix
         }
 
         private static float _spikeMs;
+        private static readonly Stopwatch SpikeWatch = Stopwatch.StartNew();
 
         private static uint _pushShip;
         private static Vector3 _pushVelocity;
@@ -346,8 +347,11 @@ namespace ShipPerformanceFix
                 }
             }
             _harness?.Update();
-            if (_spikeMs > 0f && Time.unscaledDeltaTime * 1000f > _spikeMs)
-                ShipPerfMod.Log.Msg($"[DEV] spike frame {Time.frameCount}: {Time.unscaledDeltaTime * 1000f:F1} ms");
+            // wall clock between two frames (Time.unscaledDeltaTime is not reliable while loading)
+            double gap = SpikeWatch.Elapsed.TotalMilliseconds;
+            SpikeWatch.Restart();
+            if (_spikeMs > 0f && gap > _spikeMs)
+                ShipPerfMod.Log.Msg($"[DEV] spike frame {Time.frameCount}: {gap:F1} ms");
         }
 
         /// <summary>
