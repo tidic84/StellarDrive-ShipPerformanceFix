@@ -32,6 +32,12 @@ The hull mesh (3 to 8 ms) and colliders (~1 ms) are rebuilt by the game as befor
 
 **Air density.** The game counts every voxel the octree splits during an update as vacuum, so a room's air thins a little with each panel you place inside it. With Ship Performance Fix, a room keeps its density, and a hull closed in an atmosphere takes the atmosphere's density.
 
+## Joining a world with big ships
+
+A player who joins receives every ship of the world in one message, about 17 bytes per hull panel. The Steam transport tells FishNet that a reliable message may hold 1 MB, so FishNet never splits it, but Steam refuses any message over 512 KB. Past roughly 30,000 panels in the world (one 26,000-panel ship is enough), the message is dropped and the joining player loads forever.
+
+Ship Performance Fix caps reliable messages at Steam's 512 KB, so FishNet splits the world into pieces and the client puts them back together, and raises Steam's send buffer so the pieces queued in the same tick are not refused. **The host needs the mod** for this; clients may or may not have it.
+
 ## Install
 
 With [Stellar Mod Manager](https://github.com/jollyname/StellarModManager), or extract `StellarDrive-ShipPerformanceFix.zip` into the game folder (MelonLoader 0.7.x).

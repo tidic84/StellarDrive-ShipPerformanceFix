@@ -2,7 +2,7 @@
     "id": "shipperformancefix",
     "name": "Ship Performance Fix",
     "author": "tidic84",
-    "version": "0.1.0",
-    "description": "No more freeze when you build on big ships. After every hull panel the game rebuilds the ship's rooms (the air and oxygen zones) by walking the whole outside of the hull or the whole room, which takes tens of milliseconds per panel at 2,000 parts. Ship Performance Fix gets the same rooms by walking only around the change: placing a panel drops from about 40 ms to under 1 ms. Works with any ship, no new content, saves untouched. Multiplayer: each player who installs it gets the gain on their own machine; mixing with players who don't have it is fine.",
+    "version": "0.2.0",
+    "description": "No more freeze when you build on big ships. After every hull panel the game rebuilds the ship's rooms (the air and oxygen zones) by walking the whole outside of the hull or the whole room, which takes tens of milliseconds per panel at 2,000 parts. Ship Performance Fix gets the same rooms by walking only around the change: placing a panel drops from about 40 ms to under 1 ms. Also lets players join a world with very big ships: past about 30,000 hull panels the world sent to a joining player went over Steam's 512 KB message limit and they loaded forever; the host now splits it. Works with any ship, no new content, saves untouched. Multiplayer: each player who installs it gets the gain on their own machine, and the host needs it for big-ship joins; mixing with players who don't have it is fine.",
     "thumbnail": "Thumbnail.png"
 }
