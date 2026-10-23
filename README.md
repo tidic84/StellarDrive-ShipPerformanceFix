@@ -55,6 +55,12 @@ Measured with two big ships landed on the same planet (25,746 and 69,021 panels)
 
 On the i3-9100F with the two ships landed: host physics ~7.5 → ~3.3–4.4 ms per frame at rest, and ~20–23 → ~6–8 ms per frame with the 25,746-panel ship pushed along the ground at 15 m/s (22–25 → 33–43 fps). In the air every corner is out.
 
+## Loading and spawning big ships
+
+When a ship is loaded or spawned, every hull voxel goes into the rooms octree in one batch, and the octree splits down to single voxels around each of them: 2.8 million leaves and 20 million neighbour links for a 69,021-panel ship. Each split relinks the new leaves to the old leaf's neighbours, removing the old leaf from each neighbour's list with a linear search. For a batch of more than 4,096 walls, Ship Performance Fix only creates the children during the splits and rebuilds every leaf's neighbours once at the end by pairing adjacent subtrees. The links are the same (checked list by list: 0 differences over 19,814,094 links), and so are the rooms.
+
+On the i3-9100F: 15.3 → 12.4 s for the 69,021-panel ship and 5.6 → 4.6 s for the 25,746-panel one, on the host and again on each client (the host of a solo game is both). The rest is the game's own octree: millions of small objects to allocate.
+
 ## Joining a world with big ships
 
 A player who joins receives every ship of the world in one message, about 17 bytes per hull panel. The Steam transport tells FishNet that a reliable message may hold 1 MB, so FishNet never splits it, but Steam refuses any message over 512 KB. Past roughly 30,000 panels in the world (one 26,000-panel ship is enough), the message is dropped and the joining player loads forever.
@@ -75,4 +81,4 @@ Multiplayer: every machine computes its own rooms, so each player who installs i
 
 `dev.sh` / `cmd.sh` drive the game on this PC from WSL; `dev139.sh` / `cmd139.sh` do the same on another PC over SSH (`HOST`), starting the game in its logged-in session.
 
-Override the game path with `-GamePath "D:\SteamLibrary\steamapps\common\StellarDrive Demo"`. Building with `-p:DefineConstants=DEV` adds dev commands read from `UserData/stellar_rooms_cmd.txt`, with timers on the room, mesh and collider updates. The commands are `bigship`, `addpart`, `rmpart`, `addbox`, `rooms`, `roomcheck`, `fuzz`, `vacuum`, `roomsfast on|off`, `prof on [ms]|off`, `spikes <ms>`, `frame <n> [updates]|watch [ms]` (time per player loop system and per Update), `scene`, `posefix on|off`, `boundscache on|off`, `boundscheck`, `doorfix on|off`, `doorcheck`, `push <ship> <up> <forward> <s>`, `where <ship>`, `near <ship> <m>`, `colsize`, `ccd on|off` and `load <world>`; see `RoomsDev.cs`.
+Override the game path with `-GamePath "D:\SteamLibrary\steamapps\common\StellarDrive Demo"`. Building with `-p:DefineConstants=DEV` adds dev commands read from `UserData/stellar_rooms_cmd.txt`, with timers on the room, mesh and collider updates. The commands are `bigship`, `addpart`, `rmpart`, `addbox`, `rooms`, `roomcheck`, `fuzz`, `vacuum`, `roomsfast on|off`, `prof on [ms]|off`, `spikes <ms>`, `frame <n> [updates]|watch [ms]` (time per player loop system and per Update), `scene`, `posefix on|off`, `boundscache on|off`, `boundscheck`, `doorfix on|off`, `doorcheck`, `bulk on|off`, `treestats <ship>`, `treecheck <ship>`, `cull on|off|check`, `corners stats|on|off|box|ghost|unghost`, `inertia`, `ccdfix on|off`, `push <ship> <up> <forward> <s>`, `where <ship>`, `near <ship> <m>`, `colsize`, `ccd on|off` and `load <world>`; see `RoomsDev.cs`.

@@ -197,6 +197,37 @@ namespace ShipPerformanceFix
                         ShipCornerCulling.Check(b);
                 log.Msg($"[DEV] corner culling {ShipCornerCulling.Enabled}");
             });
+            _harness.Command("treestats", a =>
+            {
+                // treestats <ship>: octree leaves, neighbour list sizes, wall leaves (host rooms)
+                var server = Core.Services.ServiceLocator.GetService<ShipsServerTracker>()?.GetShip(uint.Parse(a[1]));
+                var rooms = Traverse.Create(server).Property("Rooms").GetValue<Ships.Rooms.ShipRooms>();
+                var leaves = rooms.Tree.GetLeaves();
+                long sum = 0; int max = 0, walls = 0, over100 = 0, over1000 = 0;
+                foreach (var l in leaves)
+                {
+                    if (l.WallCount > 0) walls++;
+                    foreach (var list in new[] { l.NeighborsLeft, l.NeighborsRight, l.NeighborsBottom, l.NeighborsTop, l.NeighborsBack, l.NeighborsForward })
+                    {
+                        sum += list.Count;
+                        if (list.Count > max) max = list.Count;
+                        if (list.Count > 100) over100++;
+                        if (list.Count > 1000) over1000++;
+                    }
+                }
+                var sizes = leaves.GroupBy(l => l.Bounds).OrderBy(g => g.Key).Select(g => $"{g.Key}:{g.Count()}");
+                log.Msg($"[DEV] tree ship {a[1]}: {leaves.Length} leaves ({walls} walls), neighbour links {sum}, largest list {max}, lists >100: {over100}, >1000: {over1000}, sizes {string.Join(" ", sizes)}, root {rooms.Tree.LowerBounds}..{rooms.Tree.UpperBounds}");
+            });
+            _harness.Command("bulk", a => log.Msg($"[DEV] rooms bulk load {(RoomsBulkLoad.Enabled = a.Length < 2 || a[1] != "off")}"));
+            _harness.Command("treecheck", a =>
+            {
+                // treecheck <ship>: the host's and the client's octree neighbour lists against a rebuild
+                uint id = uint.Parse(a[1]);
+                var server = Core.Services.ServiceLocator.GetService<ShipsServerTracker>()?.GetShip(id);
+                var client = Core.Services.ServiceLocator.GetService<ShipsClientTracker>()?.Ships.FirstOrDefault(s => s.Id == id);
+                if (server != null) log.Msg("[DEV] treecheck server: " + RoomsBulkLoad.Check(Traverse.Create(server).Property("Rooms").GetValue<Ships.Rooms.ShipRooms>().Tree));
+                if (client != null) log.Msg("[DEV] treecheck client: " + RoomsBulkLoad.Check(Traverse.Create(client).Property("Rooms").GetValue<Ships.Rooms.ShipRooms>().Tree));
+            });
             _harness.Command("meshcols", a => FrameProf.MeshColliders(a, log));
             h.Patch(AccessTools.Method("Managers.Server.Updaters.PhysicsScenesServerUpdater:SimulatePhysics"),
                 prefix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStart)), postfix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStop)));
@@ -288,6 +319,10 @@ namespace ShipPerformanceFix
             });
             h.Patch(AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelUpdater), "UpdateRooms"),
                 prefix: new HarmonyMethod(typeof(RoomsDev), nameof(RoomsStart)), postfix: new HarmonyMethod(typeof(RoomsDev), nameof(RoomsStop)));
+            foreach (var m in new[] { AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelUpdater), "ClearRoomsVoxels"), AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelUpdater), "CreateRooms"),
+                AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelUpdater), "Cleanup"), AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelsTree), "AddWalls"), AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelsTree), "RemoveWalls"),
+                AccessTools.Method(typeof(Ships.Rooms.Model.ShipRoomsVoxelsTreeNode), "CreateChildLeaves") })
+                h.Patch(m, prefix: new HarmonyMethod(typeof(RoomsDev), nameof(PhaseStart)) { priority = Priority.First }, postfix: new HarmonyMethod(typeof(RoomsDev), nameof(PhaseStop)) { priority = Priority.Last });
             foreach (var m in new[] { AccessTools.Method(typeof(Ships.Visuals.ShipHullVisuals), "UpdateHull"), AccessTools.Method(typeof(Ships.Physics.Collision.ShipHullColliders), "UpdateColliders") })
                 h.Patch(m, prefix: new HarmonyMethod(typeof(RoomsDev), nameof(TimedStart)), postfix: new HarmonyMethod(typeof(RoomsDev), nameof(TimedStop)));
         }
@@ -465,13 +500,37 @@ namespace ShipPerformanceFix
 
         private static readonly Stopwatch RoomsWatch = new Stopwatch();
 
-        private static void RoomsStart() => RoomsWatch.Restart();
+        private static int _gcAtStart;
 
-        private static void RoomsStop()
+        private static void RoomsStart()
+        {
+            RoomsWatch.Restart();
+            PhaseMs.Clear();
+            _gcAtStart = System.GC.CollectionCount(0);
+        }
+
+        private static void RoomsStop(Ships.Rooms.ShipRoomsVoxelUpdater __instance)
         {
             RoomsWatch.Stop();
             if (RoomsWatch.Elapsed.TotalMilliseconds > 0.5)
                 ShipPerfMod.Log.Msg($"[DEV] UpdateRooms {RoomsWatch.Elapsed.TotalMilliseconds:F2} ms ({(RoomsFastPath.Enabled ? RoomsFastPath.LastPath : "original")})");
+            if (RoomsWatch.Elapsed.TotalMilliseconds > 100)
+            {
+                var add = Traverse.Create(__instance).Field("_addWallsVoxels").GetValue<List<Vector3Int>>();
+                ShipPerfMod.Log.Msg("[DEV]   phases: " + string.Join(", ", PhaseMs.Select(kv => $"{kv.Key} {kv.Value:F0} ms")) + $", GCs {System.GC.CollectionCount(0) - _gcAtStart}, bulk {RoomsBulkLoad.Enabled} rebuild {RoomsBulkLoad.LastRebuildMs:F0} ms, leaves after {Traverse.Create(__instance).Field("_tree").GetValue<Ships.Rooms.ShipRoomsVoxelsTree>().GetLeaves().Length}");
+            }
+        }
+
+        private static readonly Dictionary<string, double> PhaseMs = new Dictionary<string, double>();
+
+        private static void PhaseStart(out long __state) => __state = Stopwatch.GetTimestamp();
+
+        private static void PhaseStop(long __state, System.Reflection.MethodBase __originalMethod)
+        {
+            double ms = (Stopwatch.GetTimestamp() - __state) * 1000.0 / Stopwatch.Frequency;
+            string k = __originalMethod.DeclaringType.Name.Replace("ShipRoomsVoxel", "") + "." + __originalMethod.Name;
+            if (__originalMethod.Name == "CreateChildLeaves" && RoomsWatch.IsRunning == false) return;
+            PhaseMs[k] = PhaseMs.TryGetValue(k, out double v) ? v + ms : ms;
         }
     }
 }
