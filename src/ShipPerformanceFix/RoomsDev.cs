@@ -79,9 +79,9 @@ namespace ShipPerformanceFix
             });
             _harness.Command("ccd", a =>
             {
-                // ccd on|off: continuous collision detection of every ship rigidbody (host)
+                // ccd on|off|spec: continuous collision detection of every ship rigidbody (host)
                 foreach (var b in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Where(b => b.name.Contains("rigidBody server")))
-                    b.collisionDetectionMode = a.Length > 1 && a[1] == "off" ? CollisionDetectionMode.Discrete : CollisionDetectionMode.ContinuousDynamic;
+                    b.collisionDetectionMode = a[1] == "off" ? CollisionDetectionMode.Discrete : a[1] == "spec" ? CollisionDetectionMode.ContinuousSpeculative : CollisionDetectionMode.ContinuousDynamic;
                 log.Msg($"[DEV] ships ccd {a[1]}");
             });
             _harness.Command("colsize", a =>
@@ -126,6 +126,7 @@ namespace ShipPerformanceFix
                 }
                 log.Msg($"[DEV] ship {a[1]}: pos {t.position}, up {t.up}, vel {rb.linearVelocity} ({rb.linearVelocity.magnitude:F1} m/s), ang {rb.angularVelocity.magnitude:F3}, ccd {rb.collisionDetectionMode}, gravity dir {Physics.gravity}, touching {Touch(0f)}, within 20 m {Touch(20f)}");
             });
+            _harness.Command("ccdfix", a => log.Msg($"[DEV] ship speculative ccd {(ShipCcd.Enabled = a.Length < 2 || a[1] != "off")}"));
             _harness.Command("meshcols", a => FrameProf.MeshColliders(a, log));
             h.Patch(AccessTools.Method("Managers.Server.Updaters.PhysicsScenesServerUpdater:SimulatePhysics"),
                 prefix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStart)), postfix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStop)));

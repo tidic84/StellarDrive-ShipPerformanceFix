@@ -1,6 +1,6 @@
 using MelonLoader;
 
-[assembly: MelonInfo(typeof(ShipPerformanceFix.ShipPerfMod), "ShipPerformanceFix", "0.3.1", "tidic84")]
+[assembly: MelonInfo(typeof(ShipPerformanceFix.ShipPerfMod), "ShipPerformanceFix", "0.3.2", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace ShipPerformanceFix
@@ -18,6 +18,7 @@ namespace ShipPerformanceFix
             ClientShipPose.Patch(HarmonyInstance);
             HullBoundsCache.Patch(HarmonyInstance);
             FieldDoorThrottle.Patch(HarmonyInstance);
+            ShipCcd.Patch(HarmonyInstance);
 #if DEV
             RoomsDev.Init(HarmonyInstance, Log);
 #endif

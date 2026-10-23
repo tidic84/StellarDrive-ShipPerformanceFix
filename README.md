@@ -49,7 +49,9 @@ Measured with two big ships landed on the same planet (25,746 and 69,021 panels)
 
 **With TF Advanced: force field doors.** TF Advanced animates the sheet of its force field doors on the CPU, recomputing the colour of every vertex every frame for every door within 30 m, on screen or not; a 27 × 23 door has about 28,000 vertices. Ship Performance Fix paints a door only while it is on screen, at most 30 times per second, and with a copy of the mod's paint that computes each point once for both faces of the sheet (the colours are identical, checked vertex by vertex). Inside the ship above, with two big doors: ~6.7 ms → ~0.9 ms per frame, and ~50 → ~80–100 fps. Nothing changes when TF Advanced is not installed.
 
-The host's own physics step (the ships' colliders against the ground) is unchanged: about 6 ms per tick with these two ships.
+**Big ships against the ground.** The host simulates each ship with sweep-based continuous collision detection (CCD), so that 0.1 m hull panels do not pass through the ground. On a big ship that means thousands of shapes swept against the terrain every physics tick, and it is worst when the ship moves along the ground. Ship Performance Fix switches ships of 1,000 parts or more to PhysX's speculative CCD, which keeps the ground solid by creating contacts ahead of the motion. A 25,746-panel ship pushed along the ground at 15 m/s on an i3-9100F: host physics ~20–30 ms → ~10–12 ms per tick, 10–15 → 14–24 fps. At rest it is cheaper too (~9.8 → ~7.6 ms per tick). Free flight away from the ground was already cheap and does not change.
+
+The host's physics step is still the largest cost near big ships: about 6 ms per tick at rest with the two ships above on the faster PC.
 
 ## Joining a world with big ships
 
