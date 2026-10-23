@@ -32,6 +32,23 @@ The hull mesh (3 to 8 ms) and colliders (~1 ms) are rebuilt by the game as befor
 
 **Air density.** The game counts every voxel the octree splits during an update as vacuum, so a room's air thins a little with each panel you place inside it. With Ship Performance Fix, a room keeps its density, and a hull closed in an atmosphere takes the atmosphere's density.
 
+## Frame rate near big ships
+
+Two things in the game cost every frame, and grow with the size of the ships around you:
+
+- **Client colliders moved for nothing.** On each player's machine, a ship's colliders hang under a transform with no rigidbody, so PhysX treats them as static colliders. Every physics tick the game writes the ship's pose to that transform, even when the ship has not moved, and PhysX then moves every collider one by one. A 25,000-panel ship has about 20,000 of them. Ship Performance Fix writes the pose only when it changed (by more than 0.1 mm), so a parked ship, or the ship you stand in, costs nothing.
+- **Ship bounds measured voxel by voxel.** Every frame, on the client and again on the host, the game looks for a ship the player could reposition and asks each ship for its bounds. The game answers by reading every voxel of every chunk of the ship. Ship Performance Fix keeps each ship's bounds and recomputes them only after a part is added, changed or removed.
+
+Measured with two big ships landed on the same planet (25,746 and 69,021 panels), standing next to them:
+
+| | Game | Ship Performance Fix |
+| --- | --- | --- |
+| Client ship physics, per frame | ~13 ms | < 1 ms |
+| Ship bounds, per frame | ~12 ms | ~0 ms |
+| Frame rate | ~32 fps | ~100 fps |
+
+The host's own physics step (the ships' colliders against the ground) is unchanged: about 6 ms per tick with these two ships.
+
 ## Joining a world with big ships
 
 A player who joins receives every ship of the world in one message, about 17 bytes per hull panel. The Steam transport tells FishNet that a reliable message may hold 1 MB, so FishNet never splits it, but Steam refuses any message over 512 KB. Past roughly 30,000 panels in the world (one 26,000-panel ship is enough), the message is dropped and the joining player loads forever.
@@ -50,4 +67,4 @@ Multiplayer: every machine computes its own rooms, so each player who installs i
 ./build.ps1    # Release build + dist/StellarDrive-ShipPerformanceFix.zip
 ```
 
-Override the game path with `-GamePath "D:\SteamLibrary\steamapps\common\StellarDrive Demo"`. Building with `-p:DefineConstants=DEV` adds dev commands read from `UserData/stellar_rooms_cmd.txt`, with timers on the room, mesh and collider updates. The commands are `bigship`, `addpart`, `rmpart`, `addbox`, `rooms`, `roomcheck`, `fuzz`, `vacuum`, `roomsfast on|off`, `prof on [ms]|off` and `spikes <ms>`; see `RoomsDev.cs`.
+Override the game path with `-GamePath "D:\SteamLibrary\steamapps\common\StellarDrive Demo"`. Building with `-p:DefineConstants=DEV` adds dev commands read from `UserData/stellar_rooms_cmd.txt`, with timers on the room, mesh and collider updates. The commands are `bigship`, `addpart`, `rmpart`, `addbox`, `rooms`, `roomcheck`, `fuzz`, `vacuum`, `roomsfast on|off`, `prof on [ms]|off`, `spikes <ms>`, `frame <n> [updates]|watch [ms]` (time per player loop system and per Update), `scene`, `posefix on|off`, `boundscache on|off`, `boundscheck` and `load <world>`; see `RoomsDev.cs`.

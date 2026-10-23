@@ -34,6 +34,38 @@ namespace ShipPerformanceFix
         {
             _harness = new DevHarness("rooms", log, autoLaunch: false);
             _harness.Command("prof", a => ShipProf.Command(a, h, log));
+            _harness.Command("frame", a => FrameProf.Command(a, log, h));
+            _harness.Command("scene", a => FrameProf.Scene(log));
+            _harness.Command("posefix", a => log.Msg($"[DEV] client ship pose fix {(ClientShipPose.Enabled = a.Length < 2 || a[1] != "off")}"));
+            _harness.Command("boundscache", a => log.Msg($"[DEV] hull bounds cache {(HullBoundsCache.Enabled = a.Length < 2 || a[1] != "off")}"));
+            _harness.Command("boundscheck", a =>
+            {
+                // boundscheck: cached hull bounds against a fresh scan, for every ship on both sides
+                var ships = Core.Services.ServiceLocator.GetService<ShipsServerTracker>().Ships.Cast<TrackedShip>()
+                    .Concat(Core.Services.ServiceLocator.GetService<ShipsClientTracker>().Ships);
+                int ok = 0, bad = 0;
+                foreach (var s in ships)
+                {
+                    var cached = s.GetHullCoordBounds();
+                    HullBoundsCache.Enabled = false;
+                    var fresh = s.GetHullCoordBounds();
+                    HullBoundsCache.Enabled = true;
+                    if (cached.LowerCoord == fresh.LowerCoord && cached.UpperCoord == fresh.UpperCoord) ok++;
+                    else { bad++; log.Warning($"[DEV] ship {s.Id}: cached {cached.LowerCoord}-{cached.UpperCoord}, fresh {fresh.LowerCoord}-{fresh.UpperCoord}"); }
+                }
+                log.Msg($"[DEV] boundscheck: {ok} ok, {bad} wrong");
+            });
+            _harness.Command("meshcols", a => FrameProf.MeshColliders(a, log));
+            h.Patch(AccessTools.Method("Managers.Server.Updaters.PhysicsScenesServerUpdater:SimulatePhysics"),
+                prefix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStart)), postfix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStop)));
+            _harness.Command("load", a =>
+            {
+                // load <world name>: opens a save from the main menu
+                string file = System.IO.Path.Combine(Application.persistentDataPath, "WorldSaves", string.Join(" ", a.Skip(1)), "world.json");
+                Managers.Interface.MainGameSceneLoadData.Mode = Managers.Interface.MainGameSceneLoadData.GameMode.SinglePlayer;
+                Managers.Interface.MainGameSceneLoadData.SaveFileFullName = new System.IO.FileInfo(file).FullName;
+                UnityEngine.SceneManagement.SceneManager.LoadScene("MainGame", UnityEngine.SceneManagement.LoadSceneMode.Single);
+            });
             _harness.Command("spikes", a => _spikeMs = a.Length > 1 ? float.Parse(a[1], System.Globalization.CultureInfo.InvariantCulture) : 0f);
             _harness.Command("bigship", a => BigShip(log, a));
             _harness.Command("roomsfast", a => log.Msg($"[DEV] rooms fast path {(RoomsFastPath.Enabled = a.Length < 2 || a[1] != "off")}"));
