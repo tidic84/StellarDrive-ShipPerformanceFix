@@ -127,6 +127,76 @@ namespace ShipPerformanceFix
                 log.Msg($"[DEV] ship {a[1]}: pos {t.position}, up {t.up}, vel {rb.linearVelocity} ({rb.linearVelocity.magnitude:F1} m/s), ang {rb.angularVelocity.magnitude:F3}, ccd {rb.collisionDetectionMode}, gravity dir {Physics.gravity}, touching {Touch(0f)}, within 20 m {Touch(20f)}");
             });
             _harness.Command("ccdfix", a => log.Msg($"[DEV] ship speculative ccd {(ShipCcd.Enabled = a.Length < 2 || a[1] != "off")}"));
+            _harness.Command("corners", a =>
+            {
+                // corners stats|off|box|on|ghost|unghost: the convex corner colliders of the host ships' exterior (rigidbody) colliders
+                var bodies = Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Where(b => b.name.Contains("rigidBody server")).ToList();
+                if (a[1] == "stats")
+                {
+                    foreach (var g in bodies.SelectMany(b => b.GetComponentsInChildren<MeshCollider>(true)).GroupBy(m => (m.sharedMesh != null ? m.sharedMesh.name + "/" + m.sharedMesh.vertexCount + "v" : "null") + (m.convex ? " convex" : " concave")))
+                        log.Msg($"[DEV] corners: {g.Count()} x {g.Key}, e.g. lossy scale {g.First().transform.lossyScale}, bounds {g.First().sharedMesh?.bounds.size}");
+                    return;
+                }
+                int n = 0;
+                int ghost = 31, ship = LayerMask.NameToLayer("Ship");
+                if (a[1] == "ghost")
+                {
+                    log.Msg($"[DEV] layer {ghost} is '{LayerMask.LayerToName(ghost)}'");
+                    for (int i = 0; i < 32; i++) Physics.IgnoreLayerCollision(ghost, i, true);
+                }
+                foreach (var b in bodies)
+                    foreach (var m in b.GetComponentsInChildren<MeshCollider>(true))
+                    {
+                        if (a[1] == "ghost" || a[1] == "unghost")
+                        {
+                            m.enabled = true;
+                            m.gameObject.layer = a[1] == "ghost" ? ghost : ship;
+                            n++;
+                            continue;
+                        }
+                        var box = m.GetComponent<BoxCollider>();
+                        if (a[1] == "box")
+                        {
+                            if (box == null)
+                            {
+                                box = m.gameObject.AddComponent<BoxCollider>();
+                                box.center = m.sharedMesh.bounds.center;
+                                box.size = m.sharedMesh.bounds.size;
+                                box.sharedMaterial = m.sharedMaterial;
+                            }
+                            box.enabled = true;
+                            m.enabled = false;
+                        }
+                        else
+                        {
+                            m.enabled = a[1] == "on";
+                            if (box != null) box.enabled = false;
+                        }
+                        n++;
+                    }
+                log.Msg($"[DEV] corners {a[1]}: {n} colliders");
+            });
+            _harness.Command("inertia", a =>
+            {
+                // inertia: mass properties of the host ships' rigidbodies
+                foreach (var b in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Where(b => b.name.Contains("rigidBody server")))
+                    log.Msg($"[DEV] inertia {b.name}: auto {b.automaticInertiaTensor}, tensor {b.inertiaTensor}, rotation {b.inertiaTensorRotation.eulerAngles}, mass {b.mass}, com {b.centerOfMass}");
+            });
+            _harness.Command("cull", a =>
+            {
+                // cull on|off|check: corner colliders taken out away from the ground (host); check compares the inertia
+                if (a[1] == "check")
+                {
+                    foreach (var b in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Where(b => b.name.Contains("rigidBody server")))
+                        log.Msg($"[DEV] cull check {b.name}: {ShipCornerCulling.Check(b)}");
+                    return;
+                }
+                ShipCornerCulling.Enabled = a[1] != "off";
+                if (!ShipCornerCulling.Enabled)
+                    foreach (var b in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Where(b => b.name.Contains("rigidBody server")))
+                        ShipCornerCulling.Check(b);
+                log.Msg($"[DEV] corner culling {ShipCornerCulling.Enabled}");
+            });
             _harness.Command("meshcols", a => FrameProf.MeshColliders(a, log));
             h.Patch(AccessTools.Method("Managers.Server.Updaters.PhysicsScenesServerUpdater:SimulatePhysics"),
                 prefix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStart)), postfix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStop)));
