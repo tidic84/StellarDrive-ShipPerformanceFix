@@ -67,6 +67,65 @@ namespace ShipPerformanceFix
                     log.Msg($"[DEV] door {Traverse.Create(door).Field("_builtWidth").GetValue()}x{Traverse.Create(door).Field("_builtHeight").GetValue()}: worst diff field {FieldDoorThrottle.Check(door, tint, false, false)}, solid {FieldDoorThrottle.Check(door, tint, false, true)}, outline {FieldDoorThrottle.Check(door, tint, true, false)}");
                 }
             });
+            _harness.Command("push", a =>
+            {
+                // push <ship> <up m/s> <forward m/s> <seconds>: holds the ship's velocity on the host along its own axes
+                float F(int i) => float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture);
+                _pushShip = uint.Parse(a[1]);
+                var t = Core.Services.ServiceLocator.GetService<ShipsServerTracker>().GetShip(_pushShip).RigidbodyObject.transform;
+                _pushVelocity = t.up * F(2) + t.forward * F(3);
+                _pushUntil = Time.realtimeSinceStartup + F(4);
+                log.Msg($"[DEV] pushing ship {_pushShip} at {_pushVelocity} for {a[4]} s");
+            });
+            _harness.Command("ccd", a =>
+            {
+                // ccd on|off: continuous collision detection of every ship rigidbody (host)
+                foreach (var b in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Where(b => b.name.Contains("rigidBody server")))
+                    b.collisionDetectionMode = a.Length > 1 && a[1] == "off" ? CollisionDetectionMode.Discrete : CollisionDetectionMode.ContinuousDynamic;
+                log.Msg($"[DEV] ships ccd {a[1]}");
+            });
+            _harness.Command("colsize", a =>
+            {
+                // colsize: thinnest dimension of the host ships' colliders (world bounds), as a histogram
+                var hist = new SortedDictionary<float, int>();
+                foreach (var b in Object.FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Where(b => b.name.Contains("rigidBody server")))
+                    foreach (var c in b.GetComponentsInChildren<Collider>())
+                    {
+                        Vector3 e = c is BoxCollider bc ? Vector3.Scale(bc.size, c.transform.lossyScale) : c.bounds.size;
+                        float t = Mathf.Round(Mathf.Min(Mathf.Abs(e.x), Mathf.Min(Mathf.Abs(e.y), Mathf.Abs(e.z))) * 100f) / 100f;
+                        hist[t] = hist.TryGetValue(t, out int n) ? n + 1 : 1;
+                    }
+                log.Msg("[DEV] thinnest collider sizes: " + string.Join(", ", hist.Select(kv => $"{kv.Key}m x{kv.Value}")));
+                log.Msg($"[DEV] contact offset {Physics.defaultContactOffset}, max depenetration {Physics.defaultMaxDepenetrationVelocity}");
+            });
+            _harness.Command("near", a =>
+            {
+                // near <ship> <margin>: colliders of other objects inside the host ship's box grown by margin, by layer
+                var ship = Core.Services.ServiceLocator.GetService<ShipsServerTracker>().GetShip(uint.Parse(a[1]));
+                float margin = float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture);
+                var rb = ship.RigidbodyObject.GetComponent<Rigidbody>();
+                var b = ship.GetHullCoordBounds();
+                var t = ship.RigidbodyObject.transform;
+                var hits = new Collider[20000];
+                int n = t.gameObject.scene.GetPhysicsScene().OverlapBox(t.TransformPoint(b.Center), b.Extents + Vector3.one * margin, hits, t.rotation, ~(1 << LayerMask.NameToLayer("Ship")), QueryTriggerInteraction.Ignore);
+                var others = hits.Take(n).Where(c => c.attachedRigidbody != rb);
+                log.Msg($"[DEV] near ship {a[1]} ({n} hits, extents {b.Extents}, center {b.Center}): " + string.Join(", ", others.GroupBy(c => LayerMask.LayerToName(c.gameObject.layer) + "/" + (c.attachedRigidbody != null ? c.attachedRigidbody.name : c.transform.root.name)).Select(g => $"{g.Key} x{g.Count()} [{string.Join(';', g.Take(3).Select(c => c.name + '@' + c.GetType().Name))}]")));
+            });
+            _harness.Command("where", a =>
+            {
+                // where <ship>: host position, velocity, ccd mode, and what the hull box touches (margin 0 and 20 m)
+                var ship = Core.Services.ServiceLocator.GetService<ShipsServerTracker>().GetShip(uint.Parse(a[1]));
+                var rb = ship.RigidbodyObject.GetComponent<Rigidbody>();
+                var t = ship.RigidbodyObject.transform;
+                var b = ship.GetHullCoordBounds();
+                var hits = new Collider[256];
+                int Touch(float m)
+                {
+                    int n = t.gameObject.scene.GetPhysicsScene().OverlapBox(t.TransformPoint(b.Center), b.Extents + Vector3.one * m, hits, t.rotation, ~(1 << LayerMask.NameToLayer("Ship")), QueryTriggerInteraction.Ignore);
+                    return hits.Take(n).Count(c => c.attachedRigidbody != rb);
+                }
+                log.Msg($"[DEV] ship {a[1]}: pos {t.position}, up {t.up}, vel {rb.linearVelocity} ({rb.linearVelocity.magnitude:F1} m/s), ang {rb.angularVelocity.magnitude:F3}, ccd {rb.collisionDetectionMode}, gravity dir {Physics.gravity}, touching {Touch(0f)}, within 20 m {Touch(20f)}");
+            });
             _harness.Command("meshcols", a => FrameProf.MeshColliders(a, log));
             h.Patch(AccessTools.Method("Managers.Server.Updaters.PhysicsScenesServerUpdater:SimulatePhysics"),
                 prefix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStart)), postfix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStop)));
@@ -164,8 +223,22 @@ namespace ShipPerformanceFix
 
         private static float _spikeMs;
 
+        private static uint _pushShip;
+        private static Vector3 _pushVelocity;
+        private static float _pushUntil;
+
         public static void Update()
         {
+            if (Time.realtimeSinceStartup < _pushUntil)
+            {
+                var ship = Core.Services.ServiceLocator.GetService<ShipsServerTracker>()?.GetShip(_pushShip);
+                if (ship != null)
+                {
+                    var state = ship.PhysicsState;
+                    state.Velocity = _pushVelocity;
+                    ship.SetPhysicsState(state);
+                }
+            }
             _harness?.Update();
             if (_spikeMs > 0f && Time.unscaledDeltaTime * 1000f > _spikeMs)
                 ShipPerfMod.Log.Msg($"[DEV] spike frame {Time.frameCount}: {Time.unscaledDeltaTime * 1000f:F1} ms");
