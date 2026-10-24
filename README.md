@@ -67,6 +67,15 @@ When a ship is loaded or spawned, every hull voxel goes into the rooms octree in
 
 On the i3-9100F: 15.3 → 12.4 s for the 69,021-panel ship and 5.6 → 4.6 s for the 25,746-panel one, on the host and again on each client (the host of a solo game is both). The rest is the game's own octree: millions of small objects to allocate.
 
+## Loading and joining: per-panel costs
+
+Every hull panel of the world goes through a few lookups when a world is loaded, on the host and again on each player who joins. Two of them grew with the mods installed and with the ship size:
+
+- **Part lookups.** The game's `GetPartSettingById` checks that the part list is built on every call, and about ten mods (SDModKit, TF Advanced, Arsenal, KeySeat, SafetyRails, StellarAnchor, UpgradeTable…) hook that check to add their parts the first time. Their hooks then ran for each of the hundreds of thousands of lookups of a big world. Once the list is built, Ship Performance Fix returns a part that is in it straight away (UpgradeTable's own part 2100 still goes through its hook).
+- **Room voxels of a panel.** The game recomputed the panel's rotation for each of its room voxels (up to ~150 per panel, three times per panel). It is now computed once per panel with the same operations: the voxels are identical (checked on all 95,467 panels of the two ships).
+
+On the i3-9100F with the two big ships: the whole load 223 → 94 s, of which the part a joining player waits for (building the ships on their machine) ~77 → ~24 s. What is left on the host is mostly Unity attaching ~20,000 colliders to each big ship's rigidbody (~28 s here) and the rooms octree.
+
 ## Joining a world with big ships
 
 A player who joins receives every ship of the world in one message, about 17 bytes per hull panel. The Steam transport tells FishNet that a reliable message may hold 1 MB, so FishNet never splits it, but Steam refuses any message over 512 KB. Past roughly 30,000 panels in the world (one 26,000-panel ship is enough), the message is dropped and the joining player loads forever.

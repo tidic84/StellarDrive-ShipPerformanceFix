@@ -228,6 +228,42 @@ namespace ShipPerformanceFix
                 if (server != null) log.Msg("[DEV] treecheck server: " + RoomsBulkLoad.Check(Traverse.Create(server).Property("Rooms").GetValue<Ships.Rooms.ShipRooms>().Tree));
                 if (client != null) log.Msg("[DEV] treecheck client: " + RoomsBulkLoad.Check(Traverse.Create(client).Property("Rooms").GetValue<Ships.Rooms.ShipRooms>().Tree));
             });
+            _harness.Command("patches", a =>
+            {
+                // patches <Type:Method>...: Harmony patches on a method (owner and patch method), then 100,000 calls timed for part settings
+                foreach (string target in a.Skip(1))
+                {
+                    var m = AccessTools.Method(target);
+                    var info = m == null ? null : HarmonyLib.Harmony.GetPatchInfo(m);
+                    string Of(IEnumerable<Patch> ps) => ps == null ? "" : string.Join(", ", ps.Select(p => p.owner + ":" + p.PatchMethod.DeclaringType.Name + "." + p.PatchMethod.Name));
+                    log.Msg($"[DEV] patches {target}: {(m == null ? "not found" : info == null ? "none" : $"prefix [{Of(info.Prefixes)}] postfix [{Of(info.Postfixes)}] transpiler [{Of(info.Transpilers)}]")}");
+                }
+                var provider = new PartSettingsProvider();
+                provider.GetPartSettingById(70);
+                var w = Stopwatch.StartNew();
+                for (int i = 0; i < 100000; i++) provider.GetPartSettingById(70);
+                log.Msg($"[DEV] 100000 GetPartSettingById: {w.Elapsed.TotalMilliseconds:F1} ms");
+            });
+            _harness.Command("voxelcheck", a =>
+            {
+                // voxelcheck <ship>: room voxels of every hull panel, the game's code against ShipLoadSpeed's
+                var ship = Core.Services.ServiceLocator.GetService<ShipsServerTracker>().GetShip(uint.Parse(a[1]));
+                var cache = Core.Services.ServiceLocator.GetService<Ships.Rooms.ShipHullPartsVoxelsCache>();
+                int parts = 0, differ = 0;
+                foreach (var part in ship.State.GetHullPartObjects())
+                {
+                    foreach (var off in new[] { Vector3.zero, Vector3.forward, Vector3.back })
+                    {
+                        ShipLoadSpeed.Enabled = false;
+                        var original = cache.GetBlockedOutVoxels(part.SegmentType, off, part.HullPlacement);
+                        ShipLoadSpeed.Enabled = true;
+                        var fast = cache.GetBlockedOutVoxels(part.SegmentType, off, part.HullPlacement);
+                        if (!original.SequenceEqual(fast)) differ++;
+                    }
+                    parts++;
+                }
+                log.Msg($"[DEV] voxelcheck ship {a[1]}: {parts} panels, {differ} voxel lists differ");
+            });
             _harness.Command("meshcols", a => FrameProf.MeshColliders(a, log));
             h.Patch(AccessTools.Method("Managers.Server.Updaters.PhysicsScenesServerUpdater:SimulatePhysics"),
                 prefix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStart)), postfix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStop)));
@@ -332,7 +368,7 @@ namespace ShipPerformanceFix
                 AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelUpdater), "Cleanup"), AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelsTree), "AddWalls"), AccessTools.Method(typeof(Ships.Rooms.ShipRoomsVoxelsTree), "RemoveWalls"),
                 AccessTools.Method(typeof(Ships.Rooms.Model.ShipRoomsVoxelsTreeNode), "CreateChildLeaves") })
                 h.Patch(m, prefix: new HarmonyMethod(typeof(RoomsDev), nameof(PhaseStart)) { priority = Priority.First }, postfix: new HarmonyMethod(typeof(RoomsDev), nameof(PhaseStop)) { priority = Priority.Last });
-            foreach (var m in new[] { AccessTools.Method(typeof(Ships.Visuals.ShipHullVisuals), "UpdateHull"), AccessTools.Method(typeof(Ships.Physics.Collision.ShipHullColliders), "UpdateColliders") })
+            foreach (var m in new[] { AccessTools.Method(typeof(Ships.Physics.ShipRigidbody), "EnsureRigidBodyExists"), AccessTools.Method(typeof(Ships.Visuals.ShipHullVisuals), "UpdateHull"), AccessTools.Method(typeof(Ships.Physics.Collision.ShipHullColliders), "UpdateColliders") })
                 h.Patch(m, prefix: new HarmonyMethod(typeof(RoomsDev), nameof(TimedStart)), postfix: new HarmonyMethod(typeof(RoomsDev), nameof(TimedStop)));
         }
 
