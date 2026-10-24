@@ -53,18 +53,18 @@ namespace ShipPerformanceFix
         private static int _top = -1;
         private static readonly Stack<ShipRoomsVoxelsTreeNode> Plain = new Stack<ShipRoomsVoxelsTreeNode>();
         private static readonly List<ShipRoomsVoxelsTreeNode> SeedNodes = new List<ShipRoomsVoxelsTreeNode>();
-        private static readonly HashSet<ShipRoomsVoxelsTreeNode> Outside = new HashSet<ShipRoomsVoxelsTreeNode>();
+        private static readonly HashSet<ShipRoomsVoxelsTreeNode> Outside = new HashSet<ShipRoomsVoxelsTreeNode>(NodeRef.Instance);
         // Gas density of the air nodes whose state this update knows: cleared room air, and leaves split from known air
         // or merged from it. Nodes in neither map nor Unknown are untouched outside air, at the atmosphere's density.
-        private static readonly Dictionary<ShipRoomsVoxelsTreeNode, float> Known = new Dictionary<ShipRoomsVoxelsTreeNode, float>();
+        private static readonly Dictionary<ShipRoomsVoxelsTreeNode, float> Known = new Dictionary<ShipRoomsVoxelsTreeNode, float>(NodeRef.Instance);
         // air that was a wall a moment ago (or merged only from such air): no state to carry over
-        private static readonly HashSet<ShipRoomsVoxelsTreeNode> Unknown = new HashSet<ShipRoomsVoxelsTreeNode>();
+        private static readonly HashSet<ShipRoomsVoxelsTreeNode> Unknown = new HashSet<ShipRoomsVoxelsTreeNode>(NodeRef.Instance);
         private static float _atmosphere;
 
         // In-room update (only panels added, all inside one room): the room keeps its labels and is not cleared.
         private static ushort _inRoom;
         private static int _walledVoxels;
-        private static readonly Dictionary<ShipRoomsVoxelsTreeNode, ushort> SplitRoom = new Dictionary<ShipRoomsVoxelsTreeNode, ushort>();
+        private static readonly Dictionary<ShipRoomsVoxelsTreeNode, ushort> SplitRoom = new Dictionary<ShipRoomsVoxelsTreeNode, ushort>(NodeRef.Instance);
         private sealed class Flood
         {
             public readonly Stack<ShipRoomsVoxelsTreeNode> Frontier = new Stack<ShipRoomsVoxelsTreeNode>();
@@ -73,12 +73,15 @@ namespace ShipPerformanceFix
             public Vector3Int Seed;
         }
         private static readonly List<Flood> Floods = new List<Flood>();
+        private static readonly HashSet<int> OpenRoots = new HashSet<int>();
+        private static readonly Dictionary<int, float> GroupVolumes = new Dictionary<int, float>();
+        private static readonly Dictionary<int, List<int>> Members = new Dictionary<int, List<int>>();
         private static readonly Stack<Flood> FloodPool = new Stack<Flood>();
-        private static readonly Dictionary<ShipRoomsVoxelsTreeNode, int> Owner = new Dictionary<ShipRoomsVoxelsTreeNode, int>();
+        private static readonly Dictionary<ShipRoomsVoxelsTreeNode, int> Owner = new Dictionary<ShipRoomsVoxelsTreeNode, int>(NodeRef.Instance);
         // Removal-only update: the leaves the removed walls freed or merged, and the freed voxels.
         private static bool _removing;
-        private static readonly HashSet<ShipRoomsVoxelsTreeNode> Touched = new HashSet<ShipRoomsVoxelsTreeNode>();
-        private static readonly HashSet<ShipRoomsVoxelsTreeNode> Live = new HashSet<ShipRoomsVoxelsTreeNode>();
+        private static readonly HashSet<ShipRoomsVoxelsTreeNode> Touched = new HashSet<ShipRoomsVoxelsTreeNode>(NodeRef.Instance);
+        private static readonly HashSet<ShipRoomsVoxelsTreeNode> Live = new HashSet<ShipRoomsVoxelsTreeNode>(NodeRef.Instance);
         private static readonly List<Vector3Int> Freed = new List<Vector3Int>();
         private static readonly List<ShipRoomsVoxelsTreeNode> Group = new List<ShipRoomsVoxelsTreeNode>();
         private static readonly Dictionary<ushort, int> FreedPerRoom = new Dictionary<ushort, int>();
@@ -352,14 +355,14 @@ namespace ShipPerformanceFix
                 }
                 // at most one group may stay open: every other one has run out, it is a piece cut off from the room
                 roots = 0;
-                int open = 0;
+                OpenRoots.Clear();
                 for (int i = 0; i < Floods.Count; i++)
                 {
-                    if (Find(i) != i) continue;
-                    roots++;
-                    if (GroupOpen(i)) open++;
+                    int r = Find(i);
+                    if (r == i) roots++;
+                    if (Floods[i].Frontier.Count > 0) OpenRoots.Add(r);
                 }
-                if (open <= 1) break;
+                if (OpenRoots.Count <= 1) break;
             }
             if (roots <= 1)
             {
@@ -370,22 +373,33 @@ namespace ShipPerformanceFix
 
             LastPath = "in-room split";
             // R split: the open group (or else the largest one) keeps R, every other group becomes a new room
+            GroupVolumes.Clear();
+            Members.Clear();
+            OpenRoots.Clear();
+            for (int j = 0; j < Floods.Count; j++)
+            {
+                int r = Find(j);
+                float v = 0f;
+                foreach (ShipRoomsVoxelsTreeNode n in Floods[j].Nodes) v += n.Bounds * n.Bounds * n.Bounds;
+                GroupVolumes[r] = GroupVolumes.TryGetValue(r, out float sum) ? sum + v : v;
+                if (!Members.TryGetValue(r, out List<int> list)) Members[r] = list = new List<int>();
+                list.Add(j);
+                if (Floods[j].Frontier.Count > 0) OpenRoots.Add(r);
+            }
             int keeper = -1;
             float keeperVolume = -1f;
-            for (int i = 0; i < Floods.Count; i++)
+            foreach (var kv in GroupVolumes)
             {
-                if (Find(i) != i) continue;
-                if (GroupOpen(i))
+                if (OpenRoots.Contains(kv.Key))
                 {
-                    keeper = i;
+                    keeper = kv.Key;
                     keeperVolume = float.PositiveInfinity;
                     break;
                 }
-                float v = GroupVolume(i);
-                if (v > keeperVolume)
+                if (kv.Value > keeperVolume || kv.Value == keeperVolume && kv.Key < keeper)
                 {
-                    keeper = i;
-                    keeperVolume = v;
+                    keeper = kv.Key;
+                    keeperVolume = kv.Value;
                 }
             }
             float cutOff = 0f;
@@ -394,9 +408,8 @@ namespace ShipPerformanceFix
                 if (Find(i) != i || i == keeper) continue;
                 ushort id = tree.RegisterNewRoomId();
                 float volume = 0f;
-                for (int j = 0; j < Floods.Count; j++)
+                foreach (int j in Members[i])
                 {
-                    if (Find(j) != i) continue;
                     foreach (ShipRoomsVoxelsTreeNode n in Floods[j].Nodes)
                     {
                         n.RoomId = id;
@@ -449,22 +462,12 @@ namespace ShipPerformanceFix
             return i;
         }
 
-        private static bool GroupOpen(int root)
+        /// <summary>Tree nodes by reference: the game's Equals and GetHashCode compare coordinates.</summary>
+        internal sealed class NodeRef : IEqualityComparer<ShipRoomsVoxelsTreeNode>
         {
-            for (int j = 0; j < Floods.Count; j++)
-                if (Floods[j].Frontier.Count > 0 && Find(j) == root) return true;
-            return false;
-        }
-
-        private static float GroupVolume(int root)
-        {
-            float v = 0f;
-            for (int j = 0; j < Floods.Count; j++)
-            {
-                if (Find(j) != root) continue;
-                foreach (ShipRoomsVoxelsTreeNode n in Floods[j].Nodes) v += n.Bounds * n.Bounds * n.Bounds;
-            }
-            return v;
+            public static readonly NodeRef Instance = new NodeRef();
+            public bool Equals(ShipRoomsVoxelsTreeNode a, ShipRoomsVoxelsTreeNode b) => ReferenceEquals(a, b);
+            public int GetHashCode(ShipRoomsVoxelsTreeNode n) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(n);
         }
 
         /// <summary>Unexpected seeds: clear room R now (its walls are in) and let the regular floods rebuild it.</summary>

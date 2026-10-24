@@ -1,6 +1,6 @@
 using MelonLoader;
 
-[assembly: MelonInfo(typeof(ShipPerformanceFix.ShipPerfMod), "ShipPerformanceFix", "0.4.1", "tidic84")]
+[assembly: MelonInfo(typeof(ShipPerformanceFix.ShipPerfMod), "ShipPerformanceFix", "0.4.2", "tidic84")]
 [assembly: MelonGame("CuriousOwlGames", "StellarDrive")]
 
 namespace ShipPerformanceFix

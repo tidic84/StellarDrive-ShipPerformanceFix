@@ -231,6 +231,15 @@ namespace ShipPerformanceFix
             _harness.Command("meshcols", a => FrameProf.MeshColliders(a, log));
             h.Patch(AccessTools.Method("Managers.Server.Updaters.PhysicsScenesServerUpdater:SimulatePhysics"),
                 prefix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStart)), postfix: new HarmonyMethod(typeof(FrameProf), nameof(FrameProf.PhysStop)));
+            _harness.Command("loadfake", a =>
+            {
+                // loadfake <world>: like load, with a fake Steam id (when Steam cannot run the game, e.g. the account plays elsewhere)
+                _fakeSteam = true;
+                _harness.Run("load " + string.Join(" ", a.Skip(1)));
+            });
+            h.Patch(AccessTools.Method(typeof(Managers.Common.MainGameSceneInitializer), "Start"), prefix: new HarmonyMethod(typeof(RoomsDev), nameof(FakeSteamStart)));
+            // UserData/stellar_fakesteam: every load uses the fake Steam id (another mod's dev build may load its test world first)
+            _fakeSteam = System.IO.File.Exists(System.IO.Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "stellar_fakesteam"));
             _harness.Command("load", a =>
             {
                 // load <world name>: opens a save from the main menu
@@ -329,6 +338,16 @@ namespace ShipPerformanceFix
 
         private static float _spikeMs;
         private static readonly Stopwatch SpikeWatch = Stopwatch.StartNew();
+
+        private static bool _fakeSteam;
+
+        private static bool FakeSteamStart(Managers.Common.MainGameSceneInitializer __instance)
+        {
+            if (!_fakeSteam) return true;
+            Managers.Interface.MainGameSceneLoadData.FakeLocalSteamUserId = 1001;
+            Traverse.Create(__instance).Method("StartSinglePlayer").GetValue();
+            return false;
+        }
 
         private static uint _pushShip;
         private static Vector3 _pushVelocity;
@@ -521,7 +540,7 @@ namespace ShipPerformanceFix
             if (RoomsWatch.Elapsed.TotalMilliseconds > 100)
             {
                 var add = Traverse.Create(__instance).Field("_addWallsVoxels").GetValue<List<Vector3Int>>();
-                ShipPerfMod.Log.Msg("[DEV]   phases: " + string.Join(", ", PhaseMs.Select(kv => $"{kv.Key} {kv.Value:F0} ms")) + $", GCs {System.GC.CollectionCount(0) - _gcAtStart}, bulk {RoomsBulkLoad.Enabled} rebuild {RoomsBulkLoad.LastRebuildMs:F0} ms, leaves after {Traverse.Create(__instance).Field("_tree").GetValue<Ships.Rooms.ShipRoomsVoxelsTree>().GetLeaves().Length}");
+                ShipPerfMod.Log.Msg("[DEV]   phases: " + string.Join(", ", PhaseMs.Select(kv => $"{kv.Key} {kv.Value:F0} ms")) + $", GCs {System.GC.CollectionCount(0) - _gcAtStart}, bulk {RoomsBulkLoad.Enabled} rebuild {RoomsBulkLoad.LastRebuildMs:F0} ms");
             }
         }
 

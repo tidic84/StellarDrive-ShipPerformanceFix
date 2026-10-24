@@ -68,6 +68,13 @@ namespace Stellar.Shared
 
         public void Command(string name, Action<string[]> run) => _commands[name] = run;
 
+        /// <summary>Runs one command line now.</summary>
+        public void Run(string line)
+        {
+            string[] a = line.Split(' ');
+            if (_commands.TryGetValue(a[0], out Action<string[]> run)) run(a);
+        }
+
         public void SceneLoaded(int buildIndex, string sceneName)
         {
             if (!_autoLaunch) return;

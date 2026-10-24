@@ -13,7 +13,7 @@ namespace ShipPerformanceFix
     /// search. That took 8 of the 13.6 s the rooms of that ship cost on load (i3-9100F), on the host and again on each
     /// client.
     ///
-    /// For a batch of more than <see cref="MinWalls"/> walls, splits only create the children, and the face neighbours
+    /// For a batch of more than <see cref="MinWalls"/> walls into a new octree, splits only create the children, and the face neighbours
     /// of every leaf are rebuilt once at the end by pairing adjacent subtrees: the same links, without any search.
     /// </summary>
     internal static class RoomsBulkLoad
@@ -41,9 +41,10 @@ namespace ShipPerformanceFix
                 prefix: new HarmonyMethod(typeof(RoomsBulkLoad), nameof(SplitPrefix)));
         }
 
-        private static void AddWallsPrefix(IEnumerable<Vector3Int> voxelCoords)
+        private static void AddWallsPrefix(ShipRoomsVoxelsTree __instance, IEnumerable<Vector3Int> voxelCoords)
         {
-            _bulk = Enabled && voxelCoords is ICollection<Vector3Int> c && c.Count > MinWalls;
+            // a new octree only (load, spawn): on a built one the rebuild would walk every leaf for a few panels
+            _bulk = Enabled && voxelCoords is ICollection<Vector3Int> c && c.Count > MinWalls && RootRef(__instance).IsLeaf;
         }
 
         private static void AddWallsPostfix(ShipRoomsVoxelsTree __instance)
